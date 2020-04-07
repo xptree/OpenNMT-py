@@ -11,14 +11,15 @@ from onmt.inputters.text_dataset import text_sort_key, TextDataReader
 from onmt.inputters.image_dataset import img_sort_key, ImageDataReader
 from onmt.inputters.audio_dataset import audio_sort_key, AudioDataReader
 from onmt.inputters.vec_dataset import vec_sort_key, VecDataReader
+from onmt.inputters.molecule_dataset import molecule_sort_key, MoleculeDataReader
 from onmt.inputters.datareader_base import DataReaderBase
 
 str2reader = {
     "text": TextDataReader, "img": ImageDataReader, "audio": AudioDataReader,
-    "vec": VecDataReader}
+    "vec": VecDataReader, "molecule": MoleculeDataReader}
 str2sortkey = {
     'text': text_sort_key, 'img': img_sort_key, 'audio': audio_sort_key,
-    'vec': vec_sort_key}
+    'vec': vec_sort_key, "molecule": molecule_sort_key}
 
 
 __all__ = ['Dataset', 'load_old_vocab', 'get_fields', 'DataReaderBase',

@@ -23,7 +23,7 @@ try:
     import dgl
     import numpy as np
 except ImportError:
-    rdkit, dgl, np = None, None, None, None, None
+    rdkit, dgl, np = None, None, None
 
 class MoleculeDataReader(DataReaderBase):
     """Read molecular graph data from dist.
@@ -41,7 +41,7 @@ class MoleculeDataReader(DataReaderBase):
 
     @classmethod
     def from_opt(cls, opt):
-        return cls(self_loop=opt.self_loop)
+        return cls(self_loop=True)
 
     @classmethod
     def _check_deps(cls):
@@ -79,8 +79,6 @@ class MolecularGraphField(RawField):
     def __init__(self, self_loop=True):
         super(MolecularGraphField, self).__init__()
         self.self_loop = self_loop
-        fdef_name = osp.join(RDConfig.RDDataDir, 'BaseFeatures.fdef')
-        self.mol_featurizer = ChemicalFeatures.BuildFeatureFactory(fdef_name)
 
     def process(self, batch, *args, **kwargs):
         """Convert outputs of preprocess into DGLgraphs.
@@ -118,7 +116,9 @@ class MolecularGraphField(RawField):
         is_donor = defaultdict(int)
         is_acceptor = defaultdict(int)
 
-        mol_feats = self.mol_featurizer.GetFeaturesForMol(mol)
+        fdef_name = osp.join(RDConfig.RDDataDir, 'BaseFeatures.fdef')
+        mol_featurizer = ChemicalFeatures.BuildFeatureFactory(fdef_name)
+        mol_feats = mol_featurizer.GetFeaturesForMol(mol)
         mol_conformers = mol.GetConformers()
         assert len(mol_conformers) == 1
         geom = mol_conformers[0].GetPositions()
@@ -216,9 +216,9 @@ class MolecularGraphField(RawField):
         return bond_feats_dict
 
     def preprocess(self, x):
-        # <RX_1> C S ( = O ) ( = O ) c 1 c c c ( O c 2 c c ( Cl ) c c c 2 C C C ( = O ) O ) c ( C ( F ) ( F ) F ) c 1
+        # <RC_1> C S ( = O ) ( = O ) c 1 c c c ( O c 2 c c ( Cl ) c c c 2 C C C ( = O ) O ) c ( C ( F ) ( F ) F ) c 1
         x = x.split(" ")
-        if x[0].startswith("<RX_"):
+        if x[0].startswith("<RC_"):
             x = x[1:]
         x = "".join(x)
         mol = Chem.MolFromSmiles(x)
@@ -232,6 +232,7 @@ class MolecularGraphField(RawField):
         num_atoms = mol.GetNumAtoms()
         atom_feats = self.alchemy_nodes(mol)
         g.add_nodes(num=num_atoms, data=atom_feats)
+        return g
         if self.self_loop:
             g.add_edges(
                 [i for i in range(num_atoms) for j in range(num_atoms)],
@@ -268,6 +269,11 @@ class MoleculeField(RawField):
     def preprocess(self, x):
         return self.graph_field.preprocess(x), self.text_field.preprocess(x)
 
+def molecule_sort_key(ex):
+    """Sort using the number of tokens in the sequence."""
+    if hasattr(ex, "tgt"):
+        return len(ex.src[1]), len(ex.tgt[0])
+    return len(ex.src[1])
 
 def molecule_fields(**kwargs):
     nesting_text_field = text_fields(**kwargs)

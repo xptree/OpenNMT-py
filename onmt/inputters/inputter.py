@@ -17,6 +17,7 @@ from onmt.inputters.text_dataset import text_fields, TextMultiField
 from onmt.inputters.image_dataset import image_fields
 from onmt.inputters.audio_dataset import audio_fields
 from onmt.inputters.vec_dataset import vec_fields
+from onmt.inputters.molecule_dataset import molecule_fields
 from onmt.utils.logging import logger
 # backwards compatibility
 from onmt.inputters.text_dataset import _feature_tokenize  # noqa: F401
@@ -113,7 +114,7 @@ def get_fields(
 ):
     """
     Args:
-        src_data_type: type of the source input. Options are [text|img|audio].
+        src_data_type: type of the source input. Options are [text|img|audio|molecule].
         n_src_feats (int): the number of source features (not counting tokens)
             to create a :class:`torchtext.data.Field` for. (If
             ``src_data_type=="text"``, these fields are stored together
@@ -137,7 +138,7 @@ def get_fields(
         the dataset example attributes.
     """
 
-    assert src_data_type in ['text', 'img', 'audio', 'vec'], \
+    assert src_data_type in ['text', 'img', 'audio', 'vec', 'molecule'], \
         "Data type not implemented"
     assert not dynamic_dict or src_data_type == 'text', \
         'it is not possible to use dynamic_dict with non-text input'
@@ -146,7 +147,8 @@ def get_fields(
     fields_getters = {"text": text_fields,
                       "img": image_fields,
                       "audio": audio_fields,
-                      "vec": vec_fields}
+                      "vec": vec_fields,
+                      'molecule': molecule_fields}
 
     src_field_kwargs = {"n_feats": n_src_feats,
                         "include_lengths": True,
