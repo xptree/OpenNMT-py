@@ -139,7 +139,7 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
         model_opt.attention_dropout = model_opt.dropout
 
     # Build embeddings.
-    if model_opt.model_type == "text" or model_opt.model_type == "vec":
+    if model_opt.model_type == "text" or model_opt.model_type == "vec" or model_opt.model_type == "molecule":
         src_field = fields["src"]
         src_emb = build_embeddings(model_opt, src_field)
     else:

@@ -8,11 +8,13 @@
 from functools import partial
 import six
 import torch
-from torchtext.data import Field, RawField
+from torchtext.data import Field
 
 from onmt.inputters.datareader_base import DataReaderBase
 from onmt.inputters.text_dataset import _feature_tokenize, TextMultiField
+from onmt.utils.logging import logger
 from .chem_util import openbabel_to_dgl_graph
+from joblib import Parallel, delayed
 
 # domain specific dependencies
 try:
@@ -23,6 +25,16 @@ try:
     import numpy as np
 except ImportError:
     rdkit, openbabel, pybel, dgl, np = None, None, None, None, None
+
+
+class MoleculeBatcher(object):
+    def __init__(self, graph=None, text=None):
+        self.graph = graph
+        self.text = text
+    def to(self, device):
+        device = torch.device(device)
+        self.graph = self.graph.to(device)
+        self.text = self.text.to(device)
 
 class MoleculeDataReader(DataReaderBase):
     """Read molecular graph data from dist.
@@ -69,14 +81,14 @@ class MoleculeDataReader(DataReaderBase):
             yield {side: mol, "indices": i}
 
 def _to_dgl_graph(x):
-        # <RC_1> C S ( = O ) ( = O ) c 1 c c c ( O c 2 c c ( Cl ) c c c 2 C C C ( = O ) O ) c ( C ( F ) ( F ) F ) c 1
-        if x[0].startswith("<RC_"):
-            x = x[1:]
-        x = "".join(x)
-        g = openbabel_to_dgl_graph(x)
-        #  g = rdkit_to_dgl_graph(x)
-        g.readonly()
-        return g
+    # <RC_1> C S ( = O ) ( = O ) c 1 c c c ( O c 2 c c ( Cl ) c c c 2 C C C ( = O ) O ) c ( C ( F ) ( F ) F ) c 1
+    if x[0].startswith("<RC_"):
+        x = x[1:]
+    x = "".join(x)
+    g = openbabel_to_dgl_graph(x)
+    #  g = rdkit_to_dgl_graph(x)
+    g.readonly()
+    return g
 
 class MoleculeField(TextMultiField):
     def __init__(self, base_name, base_field, feats_fields):
@@ -86,17 +98,19 @@ class MoleculeField(TextMultiField):
                 feats_fields=feats_fields)
 
     def process(self, batch, device=None):
-
         batch_by_feat = list(zip(*batch))
-        graph_data = [_to_dgl_graph(x) for x in batch_by_feat[0]]
+        graph_data = Parallel(n_jobs=48)(delayed(_to_dgl_graph)(x) for x in batch_by_feat[0])
         graph_data = dgl.batch(graph_data)
-        graph_data = graph_data.to(torch.device(device))
+        if device:
+            graph_data = graph_data.to(torch.device(device))
 
         text_data = super().process(batch, device)
-        if self.text_field.base_field.include_lengths:
-            return graph_data, text_data[0], text_data[1]
+        if self.base_field.include_lengths:
+            data = MoleculeBatcher(graph=graph_data, text=text_data[0])
+            return data, text_data[1]
         else:
-            return graph_data, text_data
+            data = MoleculeBatcher(graph=graph_data, text=text_data)
+            return data
 
 def molecule_fields(**kwargs):
     """Create text fields.

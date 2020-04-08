@@ -74,22 +74,22 @@ def _obbond_feature(obmol, self_loop=False):
     return us, vs, bond_feats_dict
 
 def openbabel_to_dgl_graph(smi):
-	mol = pybel.readstring("smi", smi)
-	mol.addh() # add hydrogens, if this function is not called, pybel will output xyz string with no hydrogens.
-	mol.make3D(forcefield='mmff94', steps=100)
+    mol = pybel.readstring("smi", smi)
+    mol.addh() # add hydrogens, if this function is not called, pybel will output xyz string with no hydrogens.
+    mol.make3D(forcefield='mmff94', steps=100)
     # possible forcefields: ['uff', 'mmff94', 'ghemical']
-	mol.localopt()
-	obmol = mol.OBMol
+    mol.localopt()
+    obmol = mol.OBMol
     # add nodes
-	num_atoms = obmol.NumAtoms()
-	g = dgl.DGLGraph()
-	atom_feats = _obatom_feature(obmol)
-	g.add_nodes(num=num_atoms, data=atom_feats)
+    num_atoms = obmol.NumAtoms()
+    g = dgl.DGLGraph()
+    atom_feats = _obatom_feature(obmol)
+    g.add_nodes(num=num_atoms, data=atom_feats)
 
-	us, vs, bond_feats = _obbond_feature(obmol)
-	g.add_edges(us, vs, bond_feats)
-	g.readonly()
-	return g
+    us, vs, bond_feats = _obbond_feature(obmol)
+    g.add_edges(us, vs, bond_feats)
+    g.readonly()
+    return g
 
 def alchemy_nodes(mol):
     """Featurization for all atoms in a molecule. The atom indices

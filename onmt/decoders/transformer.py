@@ -10,6 +10,7 @@ from onmt.modules import MultiHeadedAttention, AverageAttention
 from onmt.modules.position_ffn import PositionwiseFeedForward
 from onmt.utils.misc import sequence_mask
 
+from onmt.inputters.molecule_dataset import MoleculeBatcher
 
 class TransformerDecoderLayer(nn.Module):
     """Transformer Decoder layer block in Pre-Norm style.
@@ -267,6 +268,8 @@ class TransformerDecoder(DecoderBase):
 
     def init_state(self, src, memory_bank, enc_hidden):
         """Initialize decoder state."""
+        if isinstance(src, MoleculeBatcher):
+            src = src.text
         self.state["src"] = src
         self.state["cache"] = None
 

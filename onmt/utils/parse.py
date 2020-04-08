@@ -53,7 +53,7 @@ class ArgumentParser(cfargparse.ArgumentParser):
 
     @classmethod
     def validate_model_opts(cls, model_opt):
-        assert model_opt.model_type in ["text", "img", "audio", "vec"], \
+        assert model_opt.model_type in ["text", "img", "audio", "vec", "molecule"], \
             "Unsupported model type %s" % model_opt.model_type
 
         # this check is here because audio allows the encoder and decoder to
@@ -65,9 +65,9 @@ class ArgumentParser(cfargparse.ArgumentParser):
         assert model_opt.rnn_type != "SRU" or model_opt.gpu_ranks, \
             "Using SRU requires -gpu_ranks set."
         if model_opt.share_embeddings:
-            if model_opt.model_type != "text":
+            if model_opt.model_type != "text" and model_opt.model_type != "molecule":
                 raise AssertionError(
-                    "--share_embeddings requires --model_type text.")
+                    "--share_embeddings requires --model_type text|molecule.")
         if model_opt.lambda_align > 0.0:
             assert model_opt.decoder_type == 'transformer', \
                 "Only transformer is supported to joint learn alignment."
