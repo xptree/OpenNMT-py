@@ -140,7 +140,7 @@ def get_fields(
 
     assert src_data_type in ['text', 'img', 'audio', 'vec', 'molecule'], \
         "Data type not implemented"
-    assert not dynamic_dict or src_data_type == 'text', \
+    assert not dynamic_dict or src_data_type == 'text' or src_data_type == 'molecule', \
         'it is not possible to use dynamic_dict with non-text input'
     fields = {}
 
@@ -236,7 +236,7 @@ def load_old_vocab(vocab, data_type="text", dynamic_dict=False):
         # doesn't change structure - don't return early.
         fields = vocab
         for base_name, vals in fields.items():
-            if ((base_name == 'src' and data_type == 'text') or
+            if ((base_name == 'src' and (data_type == 'text' or data_type == 'molecule')) or
                     base_name == 'tgt'):
                 assert not isinstance(vals[0][1], TextMultiField)
                 fields[base_name] = [(base_name, TextMultiField(
@@ -395,7 +395,7 @@ def _build_fields_vocab(fields, counters, data_type, share_vocab,
         fields["corpus_id"].vocab = fields["corpus_id"].vocab_cls(
             counters["corpus_id"])
 
-    if data_type == 'text':
+    if data_type == 'text' or data_type == 'molecule':
         src_multifield = fields["src"]
         _build_fv_from_multifield(
             src_multifield,
