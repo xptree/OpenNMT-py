@@ -8,6 +8,7 @@
 from functools import partial
 import six
 import torch
+import json
 from torchtext.data import Field
 
 from onmt.inputters.datareader_base import DataReaderBase
@@ -22,6 +23,7 @@ try:
     import openbabel
     import pybel
     import dgl
+    import dgl.data
     import numpy as np
 except ImportError:
     rdkit, openbabel, pybel, dgl, np = None, None, None, None, None
@@ -35,6 +37,7 @@ class MoleculeBatcher(object):
         device = torch.device(device)
         self.graph = self.graph.to(device)
         self.text = self.text.to(device)
+        return self
 
 class MoleculeDataReader(DataReaderBase):
     """Read molecular graph data from dist.
@@ -80,15 +83,44 @@ class MoleculeDataReader(DataReaderBase):
                 mol = mol.decode("utf-8")
             yield {side: mol, "indices": i}
 
-def _to_dgl_graph(x):
-    # <RC_1> C S ( = O ) ( = O ) c 1 c c c ( O c 2 c c ( Cl ) c c c 2 C C C ( = O ) O ) c ( C ( F ) ( F ) F ) c 1
-    if x[0].startswith("<RC_"):
-        x = x[1:]
-    x = "".join(x)
-    g = openbabel_to_dgl_graph(x)
+def _to_dgl_graph(index, smi):
+    g = openbabel_to_dgl_graph(smi)
     #  g = rdkit_to_dgl_graph(x)
     g.readonly()
-    return g
+    return index, smi, g
+
+
+class MoleculeStorage(object):
+    def __init__(self, memo=None):
+        self.memo = memo if memo else {}
+        logger.info("initialize storage with %d molecules" % len(self.memo))
+
+    @classmethod
+    def from_file(cls, graph_dir="/data/jiezhong/retrosynthesis/transformer_c2c_mit_database_new_all_data/data/USPTO-50K/mol.bin", smi_dir="/data/jiezhong/retrosynthesis/transformer_c2c_mit_database_new_all_data/data/USPTO-50K/mol2.json"):
+        logger.info("going to load molecular graphs from %s" % graph_dir)
+        g_list, _ = dgl.data.load_graphs(graph_dir)
+        logger.info("going to load SMILES from %s" % smi_dir)
+        with open(smi_dir, "r") as f:
+            smi_list = json.load(f)
+        memo = dict(zip(smi_list, g_list))
+        return cls(memo)
+
+    def query(self, batch):
+        # <RC_1> C S ( = O ) ( = O ) c 1 c c c ( O c 2 c c ( Cl ) c c c 2 C C C ( = O ) O ) c ( C ( F ) ( F ) F ) c 1
+        to_compute, cached = [], [None] * len(batch)
+        for i, x in enumerate(batch):
+            x = "".join(x[1:])
+            if x in self.memo:
+                cached[i] = self.memo[x]
+            else:
+                to_compute.append((i, x))
+        if len(to_compute):
+            computed = Parallel(n_jobs=32)(delayed(_to_dgl_graph)(i, x) for i, x in to_compute)
+            for i, smi, graph in computed:
+                self.memo[smi] = graph
+                cached[i] = graph
+        return cached
+
 
 class MoleculeField(TextMultiField):
     def __init__(self, base_name, base_field, feats_fields):
@@ -99,7 +131,12 @@ class MoleculeField(TextMultiField):
 
     def process(self, batch, device=None):
         batch_by_feat = list(zip(*batch))
-        graph_data = Parallel(n_jobs=48)(delayed(_to_dgl_graph)(x) for x in batch_by_feat[0])
+        #  graph_data = Parallel(n_jobs=48)(delayed(_to_dgl_graph)(x) for x in batch_by_feat[0])
+
+        if not hasattr(self, 'storage'):
+            self.storage = MoleculeStorage.from_file()
+
+        graph_data = self.storage.query(batch_by_feat[0])
         graph_data = dgl.batch(graph_data)
         if device:
             graph_data = graph_data.to(torch.device(device))
